@@ -23,6 +23,7 @@ import logging
 import time
 import math
 import threading
+import requests
 
 from threading import Thread, Lock
 from queue import Queue, Empty
@@ -198,7 +199,7 @@ def search_worker_thread(args, account, search_items_queue, parse_lock, encrypti
                 # Grab the next thing to search (when available)
                 step, step_location = search_items_queue.get()
 
-                log.info('Search step %d beginning (queue size is %d)', step, search_items_queue.qsize())
+                log.debug('Search step %d beginning (queue size is %d)', step, search_items_queue.qsize())
 
                 # Let the api know where we intend to be for this loop
                 api.set_position(*step_location)
@@ -239,7 +240,11 @@ def search_worker_thread(args, account, search_items_queue, parse_lock, encrypti
                     # Got the response, lock for parsing and do so (or fail, whatever)
                     with parse_lock:
                         try:
-                            parsed = parse_map(response_dict, step_location)
+                            if args.remote_db:
+                                log.debug('proxying to %s', args.remote_db)
+                                proxy_response_dict(args, response_dict)
+                            else:
+                                parsed = parse_map(response_dict, step_location)
                             log.debug('Search step %s completed', step)
                             search_items_queue.task_done()
                             break # All done, get out of the request-retry loop
@@ -295,3 +300,12 @@ def map_request(api, position):
 
 class TooManyLoginAttempts(Exception):
     pass
+
+def proxy_response_dict(args, response_dict):
+    try:
+#        requests.post(args.remote_db, json=response_dict, timeout=(None, 1))
+        requests.post(args.remote_db, json=response_dict, timeout=(None, 1))
+    except requests.exceptions.ReadTimeout:
+        log.debug('Response timeout on proxy endpoint %s', args.remote_db)
+    except requests.exceptions.RequestException as e:
+        log.debug(e)

@@ -14,7 +14,7 @@ from datetime import timedelta
 from collections import OrderedDict
 
 from . import config
-from .models import Pokemon, Gym, Pokestop, ScannedLocation
+from .models import Pokemon, Gym, Pokestop, ScannedLocation, parse_map
 
 log = logging.getLogger(__name__)
 compress = Compress()
@@ -33,7 +33,14 @@ class Pogom(Flask):
         self.route("/search_control", methods=['GET'])(self.get_search_control)
         self.route("/search_control", methods=['POST'])(self.post_search_control)
         self.route("/stats", methods=['GET'])(self.get_stats)
+        self.route("/upload/pokemon", methods=['POST'])(self.post_pokemon)
 
+    def post_pokemon(self): 
+        response_dict = request.get_json(force=True)
+        # log.info('post_pokemon: %s', response_dict)
+        parse_map(response_dict, None)
+        return 'ok'
+        
     def set_search_control(self, control):
         self.search_control = control
 

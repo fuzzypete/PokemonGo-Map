@@ -17,6 +17,7 @@ from . import config
 from .utils import get_pokemon_name, get_pokemon_rarity, get_pokemon_types, get_args, send_to_webhook
 from .transform import transform_from_wgs_to_gcj
 from .customLog import printPokemon
+from .notify import check_for_notify
 
 log = logging.getLogger(__name__)
 
@@ -376,6 +377,7 @@ def parse_map(map_dict, step_location):
     if pokemons and config['parse_pokemon']:
         pokemons_upserted = len(pokemons)
         bulk_upsert(Pokemon, pokemons)
+        check_for_notify(pokemons)
 
     if pokestops and config['parse_pokestops']:
         pokestops_upserted = len(pokestops)
@@ -385,19 +387,20 @@ def parse_map(map_dict, step_location):
         gyms_upserted = len(gyms)
         bulk_upsert(Gym, gyms)
 
-    log.info('Upserted %d pokemon, %d pokestops, and %d gyms',
+    log.debug('Upserted %d pokemon, %d pokestops, and %d gyms',
         pokemons_upserted,
         pokestops_upserted,
         gyms_upserted)
 
-    scanned[0] = {
-        'scanned_id': str(step_location[0])+','+str(step_location[1]),
-        'latitude': step_location[0],
-        'longitude': step_location[1],
-        'last_modified': datetime.utcnow(),
-    }
+    if step_location:
+        scanned[0] = {
+            'scanned_id': str(step_location[0])+','+str(step_location[1]),
+            'latitude': step_location[0],
+            'longitude': step_location[1],
+            'last_modified': datetime.utcnow(),
+        }
 
-    bulk_upsert(ScannedLocation, scanned)
+        bulk_upsert(ScannedLocation, scanned)
 
     clean_database()
 
