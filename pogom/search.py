@@ -20,11 +20,8 @@ Search Architecture:
 import logging
 import time
 import math
-<<<<<<< HEAD
 import threading
 import requests
-=======
->>>>>>> 25d3d11ecbc964ba4e7bf3ea380632bdfe68f739
 
 from threading import Thread, Lock
 from queue import Queue, Empty
