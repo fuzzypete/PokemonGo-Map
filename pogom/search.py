@@ -32,6 +32,7 @@ from pgoapi import utilities as util
 from pgoapi.exceptions import AuthException
 
 from .models import parse_map
+from .notify import notify_new
 
 log = logging.getLogger(__name__)
 
@@ -246,11 +247,11 @@ def search_worker_thread(args, account, search_items_queue, parse_lock, encrypti
                     # Got the response, lock for parsing and do so (or fail, whatever)
                     with parse_lock:
                         try:
+                            notify_new(args, response_dict)
                             if args.remote_db:
                                 log.debug('proxying to %s', args.remote_db)
                                 proxy_response_dict(args, response_dict)
-                            else:
-                                parse_map(response_dict, step_location)
+                            parse_map(response_dict, step_location)
                             log.debug('Search step %s completed', step)
                             search_items_queue.task_done()
                             break  # All done, get out of the request-retry loop

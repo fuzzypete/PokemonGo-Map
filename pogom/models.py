@@ -387,7 +387,7 @@ def parse_map(map_dict, step_location):
     if pokemons and config['parse_pokemon']:
         pokemons_upserted = len(pokemons)
         bulk_upsert(Pokemon, pokemons)
-        check_for_notify(pokemons)
+        # check_for_notify(pokemons)
 
     if pokestops and config['parse_pokestops']:
         pokestops_upserted = len(pokestops)
@@ -396,11 +396,6 @@ def parse_map(map_dict, step_location):
     if gyms and config['parse_gyms']:
         gyms_upserted = len(gyms)
         bulk_upsert(Gym, gyms)
-
-    log.debug('Upserted %d pokemon, %d pokestops, and %d gyms',
-        pokemons_upserted,
-        pokestops_upserted,
-        gyms_upserted)
 
     if step_location:
         scanned[0] = {
@@ -415,7 +410,7 @@ def parse_map(map_dict, step_location):
 
     flaskDb.close_db(None)
 
-    log.info('Upserted %d pokemon, %d pokestops, and %d gyms',
+    log.debug('Upserted %d pokemon, %d pokestops, and %d gyms',
              pokemons_upserted,
              pokestops_upserted,
              gyms_upserted)

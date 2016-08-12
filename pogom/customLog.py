@@ -28,3 +28,19 @@ def printPokemon(id, lat, lng, itime):
             timeLeft = itime - datetime.utcnow()
             print("======================================\n Name: %s\n Rarity: %s\n Coord: (%f,%f)\n ID: %s \n Remaining Time: %s\n======================================" % (
                 pokemon_name.encode('utf-8'), pokemon_rarity.encode('utf-8'), lat, lng, pokemon_id, str(timeLeft)))
+
+def printPokemonAlways(id, lat, lng, itime):
+    pokemon_name = get_pokemon_name(id).lower()
+    pokemon_rarity = get_pokemon_rarity(id).lower()
+    pokemon_id = str(id)
+    doPrint = True
+    # if args.ignore:
+    #     if pokemon_name in IGNORE or pokemon_id in IGNORE:
+    #         doPrint = False
+    # elif args.only:
+    #     if pokemon_name not in ONLY and pokemon_id not in ONLY:
+    #         doPrint = False
+    if doPrint:
+        timeLeft = itime - datetime.utcnow()
+        print("======================================\n Name: %s\n Rarity: %s\n Coord: (%f,%f)\n ID: %s \n Remaining Time: %s\n======================================" % (
+            pokemon_name.encode('utf-8'), pokemon_rarity.encode('utf-8'), lat, lng, pokemon_id, str(timeLeft)))
