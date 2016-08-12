@@ -37,7 +37,7 @@ class Pogom(Flask):
 
     def post_pokemon(self): 
         response_dict = request.get_json(force=True)
-        # log.info('post_pokemon: %s', response_dict)
+        log.debug('post_pokemon: %s', response_dict)
         parse_map(response_dict, None)
         return 'ok'
         
