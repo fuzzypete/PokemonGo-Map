@@ -124,7 +124,7 @@ def search_overseer_thread(args, new_location_queue, pause_bit, encryption_lib_p
         t = Thread(target=search_worker_thread,
                    name='search_worker_{}'.format(i),
                    args=(args, account, search_items_queue, parse_lock,
-                         encryption_lib_path))
+                         encryption_lib_path, new_location_queue))
         t.daemon = True
         t.start()
 
@@ -177,7 +177,7 @@ def search_overseer_thread(args, new_location_queue, pause_bit, encryption_lib_p
         time.sleep(1)
 
 
-def search_worker_thread(args, account, search_items_queue, parse_lock, encryption_lib_path):
+def search_worker_thread(args, account, search_items_queue, parse_lock, encryption_lib_path, new_location_queue):
 
     # If we have more than one account, stagger the logins such that they occur evenly over scan_delay
     if len(args.accounts) > 1:
@@ -250,7 +250,7 @@ def search_worker_thread(args, account, search_items_queue, parse_lock, encrypti
                             notify_new(args, response_dict)
                             if args.remote_db:
                                 log.debug('proxying to %s', args.remote_db)
-                                proxy_response_dict(args, response_dict)
+                                proxy_response_dict(args, response_dict, new_location_queue)
                             parse_map(response_dict, step_location)
                             log.debug('Search step %s completed', step)
                             search_items_queue.task_done()
@@ -316,11 +316,15 @@ def map_request(api, position):
 class TooManyLoginAttempts(Exception):
     pass
 
-def proxy_response_dict(args, response_dict):
+def proxy_response_dict(args, response_dict, new_location_queue):
     try:
 #        requests.post(args.remote_db, json=response_dict, timeout=(None, 1))
         response = requests.post(args.remote_db, json=response_dict, timeout=(None, 1))
-        log.debug('proxy response : %s', response)
+        responseContent = response.json()
+        if 'lat' in responseContent and 'lng' in responseContent:
+            log.debug('Got new lat and lng')
+            new_location_queue.put((responseContent['lat'], responseContent['lng'], 0))
+        log.debug('proxy response : %s, content: %s', response, responseContent)
     except requests.exceptions.ReadTimeout:
         log.debug('Response timeout on proxy endpoint %s', args.remote_db)
     except requests.exceptions.RequestException as e:

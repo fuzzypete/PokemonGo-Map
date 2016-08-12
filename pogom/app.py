@@ -39,7 +39,12 @@ class Pogom(Flask):
         response_dict = request.get_json(force=True)
         log.debug('post_pokemon: %s', response_dict)
         parse_map(response_dict, None)
-        return 'ok'
+        d = {}
+        if self.new_location:
+            d['lat'] = self.current_location[0]
+            d['lng'] = self.current_location[1]
+            self.new_location = False
+        return jsonify(d)
         
     def set_search_control(self, control):
         self.search_control = control
@@ -49,6 +54,7 @@ class Pogom(Flask):
 
     def set_current_location(self, location):
         self.current_location = location
+        self.new_location = True
 
     def get_search_control(self):
         return jsonify({'status': not self.search_control.is_set()})
