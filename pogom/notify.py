@@ -34,7 +34,7 @@ notifiedMap = {}
 rare_ids = {2, 5, 6, 130, 131, 103, 9, 59, 145, 146, 143, 144, 80, 3, 6, 45, 68, 31, 76, 110, 89, 108, 122, 112, 83, 78, 71, 68, 112, 113, 114, 115, 137, 26, 65, 139, 53, 36, 8, 38, 62}
 notify_ids = rare_ids
 #hunting
-notify_ids = notify_ids.union({1, 4, 7, 25, 58, 102, 126, 138, 77, 66, 37})
+#notify_ids = notify_ids.union({1, 4, 7, 25, 58, 102, 126, 138, 77, 66, 37})
 
 #EVEE!!!
 #notify_ids = notify_ids.union({133})
@@ -58,8 +58,8 @@ def check_for_notify(args, pokemons):
                 	message = "Found {} at {}. Disappears at {}".format(pokename, maplink, disappearTime)
              		log.info(message)
              		try:
-             			#client.messages.create(to = '2069303302', from_ = '2064287851', body = message)
-             			#client.messages.create(to = '2063725192', from_ = '2064287851', body = message)
+             			client.messages.create(to = '2069303302', from_ = '2064287851', body = message)
+             			client.messages.create(to = '2063725192', from_ = '2064287851', body = message)
              			# client.messages.create(to = '2063725220', from_ = '2064287851', body = message)
              			notifiedMap[encounterId] = True
              		except TwilioRestException as e:
@@ -85,7 +85,7 @@ def notify_new(args, mapResponse):
                 lure_expiration = datetime.utcfromtimestamp(f['lure_info']['lure_expires_timestamp_ms'] / 1000.0)
                 active_pokemon_id = f['lure_info']['active_pokemon_id']
                 encounter_id = f['lure_info']['encounter_id']
-                # printPokemonAlways(active_pokemon_id, f['latitude'], f['longitude'], lure_expiration)
+                printPokemonAlways(active_pokemon_id, f['latitude'], f['longitude'], lure_expiration)
                 pokemons[encounter_id] = {
                     'encounter_id': b64encode(str(encounter_id)),
                     'spawnpoint_id': 'spawn id',
