@@ -383,12 +383,12 @@ def parse_map(map_dict, step_location):
     pokestops_upserted = 0
     gyms_upserted = 0
 
-if step_location:
-    scanned[0] = {
-        'latitude': step_location[0],
-        'longitude': step_location[1],
-        'last_modified': datetime.utcnow(),
-    }
+    if step_location:
+        scanned[0] = {
+            'latitude': step_location[0],
+            'longitude': step_location[1],
+            'last_modified': datetime.utcnow(),
+        }
 
     while True:
         try:
