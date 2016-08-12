@@ -56,7 +56,7 @@ def check_for_notify(pokemons):
              		log.info(message)
              		try:
              			client.messages.create(to = '2069303302', from_ = '2064287851', body = message)
-             			# client.messages.create(to = '2063725192', from_ = '2064287851', body = message)
+             			client.messages.create(to = '2063725192', from_ = '2064287851', body = message)
              			# client.messages.create(to = '2063725220', from_ = '2064287851', body = message)
              			notifiedMap[encounterId] = True
              		except TwilioRestException as e:

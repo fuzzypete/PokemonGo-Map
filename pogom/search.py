@@ -318,7 +318,8 @@ class TooManyLoginAttempts(Exception):
 def proxy_response_dict(args, response_dict):
     try:
 #        requests.post(args.remote_db, json=response_dict, timeout=(None, 1))
-        requests.post(args.remote_db, json=response_dict, timeout=(None, 1))
+        response = requests.post(args.remote_db, json=response_dict, timeout=(None, 1))
+        log.debug('proxy response : %s', response)
     except requests.exceptions.ReadTimeout:
         log.debug('Response timeout on proxy endpoint %s', args.remote_db)
     except requests.exceptions.RequestException as e:

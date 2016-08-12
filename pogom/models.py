@@ -377,13 +377,6 @@ def parse_map(map_dict, step_location):
     pokestops_upserted = 0
     gyms_upserted = 0
 
-    scanned[0] = {
-        'scanned_id': str(step_location[0]) + ',' + str(step_location[1]),
-        'latitude': step_location[0],
-        'longitude': step_location[1],
-        'last_modified': datetime.utcnow(),
-    }
-
     while True:
         try:
             flaskDb.connect_db()
@@ -410,6 +403,12 @@ def parse_map(map_dict, step_location):
         gyms_upserted)
 
     if step_location:
+        scanned[0] = {
+            'scanned_id': str(step_location[0]) + ',' + str(step_location[1]),
+            'latitude': step_location[0],
+            'longitude': step_location[1],
+            'last_modified': datetime.utcnow(),
+        }
         bulk_upsert(ScannedLocation, scanned)
 
     clean_database()
