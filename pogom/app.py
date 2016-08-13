@@ -53,6 +53,7 @@ class Pogom(Flask):
         self.location_queue = queue
 
     def set_current_location(self, location):
+        log.info('set_current_location: %s', location)
         self.current_location = location
         self.new_location = True
 

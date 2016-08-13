@@ -67,7 +67,11 @@ def check_for_notify(args, pokemons):
 
 def notify_new(args, mapResponse):
     pokemons = {}
-    cells = mapResponse['responses']['GET_MAP_OBJECTS']['map_cells']
+    mapObjects = mapResponse['responses']['GET_MAP_OBJECTS'] 
+    if 'map_cells' not in mapObjects:
+        return
+
+    cells = mapObjects['map_cells']
     for cell in cells:
         for p in cell.get('wild_pokemons', []):
             d_t = datetime.utcfromtimestamp((p['last_modified_timestamp_ms'] + p['time_till_hidden_ms']) / 1000.0)

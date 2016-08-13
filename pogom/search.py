@@ -322,7 +322,7 @@ def proxy_response_dict(args, response_dict, new_location_queue):
         response = requests.post(args.remote_db, json=response_dict, timeout=(None, 1))
         responseContent = response.json()
         if 'lat' in responseContent and 'lng' in responseContent:
-            log.info('Got new lat and lng')
+            log.info('Got new lat and lng (%s, %s)', responseContent['lat'], responseContent['lng'])
             new_location_queue.put((responseContent['lat'], responseContent['lng'], 0))
         log.debug('proxy response : %s, content: %s', response, responseContent)
     except requests.exceptions.ReadTimeout:
