@@ -85,7 +85,7 @@ def notify_new(args, mapResponse):
                 lure_expiration = datetime.utcfromtimestamp(f['lure_info']['lure_expires_timestamp_ms'] / 1000.0)
                 active_pokemon_id = f['lure_info']['active_pokemon_id']
                 encounter_id = f['lure_info']['encounter_id']
-                printPokemonAlways(active_pokemon_id, f['latitude'], f['longitude'], lure_expiration)
+                # printPokemonAlways(active_pokemon_id, f['latitude'], f['longitude'], lure_expiration)
                 pokemons[encounter_id] = {
                     'encounter_id': b64encode(str(encounter_id)),
                     'spawnpoint_id': 'spawn id',
