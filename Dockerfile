@@ -15,7 +15,7 @@ WORKDIR /usr/src/app
 ENTRYPOINT ["python", "./runserver.py", "--host", "0.0.0.0"]
 
 # Set default options when container is run without any command line arguments
-CMD ["-h"]
+CMD ["--port 80 -l '3043 50th Ave SW, Seattle, WA 98116' -os"]
 
 # Install required system packages
 RUN apk add --no-cache ca-certificates
