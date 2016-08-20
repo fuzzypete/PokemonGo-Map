@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import os
@@ -9,6 +9,7 @@ import time
 import re
 import requests
 import ssl
+import json
 
 from distutils.version import StrictVersion
 
@@ -19,10 +20,11 @@ from flask_cache_bust import init_cache_busting
 
 from pogom import config
 from pogom.app import Pogom
-from pogom.utils import get_args, insert_mock_data, get_encryption_lib_path
+from pogom.utils import get_args, get_encryption_lib_path
 
-from pogom.search import search_overseer_thread, fake_search_loop
-from pogom.models import init_database, create_tables, drop_tables
+from pogom.search import search_overseer_thread, search_overseer_thread_ss
+from pogom.models import init_database, create_tables, drop_tables, Pokemon, db_updater, clean_db_loop
+from pogom.webhook import wh_updater
 
 # Currently supported pgoapi
 pgoapi_version = "1.1.7"
@@ -53,10 +55,11 @@ if not hasattr(pgoapi, "__version__") or StrictVersion(pgoapi.__version__) < Str
     log.critical("It seems `pgoapi` is not up-to-date. You must run pip install -r requirements.txt again")
     sys.exit(1)
 
-# Check if we have the proper encryption library file and get its path
-encryption_lib_path = get_encryption_lib_path()
-if encryption_lib_path is "":
-    sys.exit(1)
+def main():
+    # Check if we have the proper encryption library file and get its path
+    encryption_lib_path = get_encryption_lib_path()
+    if encryption_lib_path is "":
+        sys.exit(1)
 
 args = get_args()
 
@@ -71,89 +74,100 @@ if not args.no_server:
         log.critical('Missing front-end assets (static/dist) -- please run "npm install && npm run build" before starting the server')
         sys.exit()
 
-# These are very noisey, let's shush them up a bit
-logging.getLogger('peewee').setLevel(logging.INFO)
-logging.getLogger('requests').setLevel(logging.WARNING)
-logging.getLogger('pgoapi.pgoapi').setLevel(logging.WARNING)
-logging.getLogger('pgoapi.rpc_api').setLevel(logging.INFO)
-logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
-config['parse_pokemon'] = not args.no_pokemon
-config['parse_pokestops'] = not args.no_pokestops
-config['parse_gyms'] = not args.no_gyms
+    log.info('Parsed location is: %.4f/%.4f/%.4f (lat/lng/alt)',
+             position[0], position[1], position[2])
 
-# Turn these back up if debugging
-if args.debug:
-    logging.getLogger('requests').setLevel(logging.DEBUG)
-    logging.getLogger('pgoapi').setLevel(logging.DEBUG)
-    logging.getLogger('rpc_api').setLevel(logging.DEBUG)
+    if args.no_pokemon:
+        log.info('Parsing of Pokemon disabled')
+    if args.no_pokestops:
+        log.info('Parsing of Pokestops disabled')
+    if args.no_gyms:
+        log.info('Parsing of Gyms disabled')
 
-# use lat/lng directly if matches such a pattern
-prog = re.compile("^(\-?\d+\.\d+),?\s?(\-?\d+\.\d+)$")
-res = prog.match(args.location)
-if res:
-    log.debug('Using coordinates from CLI directly')
-    position = (float(res.group(1)), float(res.group(2)), 0)
-else:
-    log.debug('Looking up coordinates in API')
-    position = util.get_pos_by_name(args.location)
+    config['LOCALE'] = args.locale
+    config['CHINA'] = args.china
 
-# Use the latitude and longitude to get the local altitude from Google
-try:
-    url = 'https://maps.googleapis.com/maps/api/elevation/json?locations={},{}'.format(
-        str(position[0]), str(position[1]))
-    altitude = requests.get(url).json()[u'results'][0][u'elevation']
-    log.debug('Local altitude is: %sm', altitude)
-    position = (position[0], position[1], altitude)
-except (requests.exceptions.RequestException, IndexError, KeyError):
-    log.error('Unable to retrieve altitude from Google APIs; setting to 0')
+    app = Pogom(__name__)
+    db = init_database(app)
+    if args.clear_db:
+        log.info('Clearing database')
+        if args.db_type == 'mysql':
+            drop_tables(db)
+        elif os.path.isfile(args.db):
+            os.remove(args.db)
+    create_tables(db)
 
-if not any(position):
-    log.error('Could not get a position by name, aborting')
-    sys.exit()
+    app.set_current_location(position)
 
-log.info('Parsed location is: %.4f/%.4f/%.4f (lat/lng/alt)',
-         position[0], position[1], position[2])
+    # Control the search status (running or not) across threads
+    pause_bit = Event()
+    pause_bit.clear()
 
-if args.no_pokemon:
-    log.info('Parsing of Pokemon disabled')
-if args.no_pokestops:
-    log.info('Parsing of Pokestops disabled')
-if args.no_gyms:
-    log.info('Parsing of Gyms disabled')
+    # Setup the location tracking queue and push the first location on
+    new_location_queue = Queue()
+    new_location_queue.put(position)
 
-config['LOCALE'] = args.locale
-config['CHINA'] = args.china
+    # DB Updates
+    db_updates_queue = Queue()
 
-app = Pogom(__name__)
-db = init_database(app)
-if args.clear_db:
-    log.info('Clearing database')
-    if args.db_type == 'mysql':
-        drop_tables(db)
-    elif os.path.isfile(args.db):
-        os.remove(args.db)
-create_tables(db)
+    # Thread(s) to process database updates
+    for i in range(args.db_threads):
+        log.debug('Starting db-updater worker thread %d', i)
+        t = Thread(target=db_updater, name='db-updater-{}'.format(i), args=(args, db_updates_queue))
+        t.daemon = True
+        t.start()
 
-app.set_current_location(position)
+    # db clearner; really only need one ever
+    t = Thread(target=clean_db_loop, name='db-cleaner', args=(args,))
+    t.daemon = True
+    t.start()
 
-# Control the search status (running or not) across threads
-pause_bit = Event()
-pause_bit.clear()
+    # WH Updates
+    wh_updates_queue = Queue()
 
-# Setup the location tracking queue and push the first location on
-new_location_queue = Queue()
-new_location_queue.put(position)
+    # Thread to process webhook updates
+    for i in range(args.wh_threads):
+        log.debug('Starting wh-updater worker thread %d', i)
+        t = Thread(target=wh_updater, name='wh-updater-{}'.format(i), args=(args, wh_updates_queue))
+        t.daemon = True
+        t.start()
 
-if not args.only_server:
-    # Gather the pokemons!
-    if not args.mock:
-        log.debug('Starting a real search thread')
-        search_thread = Thread(target=search_overseer_thread, args=(args, new_location_queue, pause_bit, encryption_lib_path))
-    else:
-        log.debug('Starting a fake search thread')
-        insert_mock_data(position)
-        search_thread = Thread(target=fake_search_loop)
+    if not args.only_server:
+        # Gather the pokemons!
+        argset = (args, new_location_queue, pause_bit, encryption_lib_path, db_updates_queue, wh_updates_queue)
+        # check the sort of scan
+        if not args.spawnpoint_scanning:
+            log.debug('Starting a hex search thread')
+            search_thread = Thread(target=search_overseer_thread, args=argset)
+        # using -ss
+        else:
+            log.debug('Starting a sp search thread')
+            if args.dump_spawnpoints:
+                with open(args.spawnpoint_scanning, 'w+') as file:
+                    log.info('Exporting spawns')
+                    spawns = Pokemon.get_spawnpoints_in_hex(position, args.step_limit)
+                    file.write(json.dumps(spawns))
+                    file.close()
+                    log.info('Finished exporting spawns')
+            # start the scan sceduler
+            search_thread = Thread(target=search_overseer_thread_ss, args=argset)
+
+        search_thread.daemon = True
+        search_thread.name = 'search-overseer'
+        search_thread.start()
+
+    if args.cors:
+        CORS(app)
+
+    # No more stale JS
+    init_cache_busting(app)
+
+    app.set_search_control(pause_bit)
+    app.set_location_queue(new_location_queue)
+
+    config['ROOT_PATH'] = app.root_path
+    config['GMAPS_KEY'] = args.gmaps_key
 
     search_thread.daemon = True
     search_thread.name = 'search_thread'
@@ -185,3 +199,6 @@ if __name__ == '__main__':
             log.info('Web server in SSL mode.')
 
         app.run(threaded=True, use_reloader=False, debug=args.debug, host=args.host, port=args.port, ssl_context=ssl_context)
+
+if __name__ == '__main__':
+    main()
