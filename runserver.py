@@ -55,25 +55,66 @@ if not hasattr(pgoapi, "__version__") or StrictVersion(pgoapi.__version__) < Str
     log.critical("It seems `pgoapi` is not up-to-date. You must run pip install -r requirements.txt again")
     sys.exit(1)
 
+
 def main():
     # Check if we have the proper encryption library file and get its path
     encryption_lib_path = get_encryption_lib_path()
     if encryption_lib_path is "":
         sys.exit(1)
 
-args = get_args()
+    args = get_args()
 
-if args.debug:
-    log.setLevel(logging.DEBUG)
-else:
-    log.setLevel(logging.INFO)
+    if args.debug:
+        log.setLevel(logging.DEBUG)
+    else:
+        log.setLevel(logging.INFO)
 
-# Let's not forget to run Grunt / Only needed when running with webserver
-if not args.no_server:
-    if not os.path.exists(os.path.join(os.path.dirname(__file__), 'static/dist')):
-        log.critical('Missing front-end assets (static/dist) -- please run "npm install && npm run build" before starting the server')
+    # Let's not forget to run Grunt / Only needed when running with webserver
+    if not args.no_server:
+        if not os.path.exists(os.path.join(os.path.dirname(__file__), 'static/dist')):
+            log.critical('Missing front-end assets (static/dist) -- please run "npm install && npm run build" before starting the server')
+            sys.exit()
+
+    # These are very noisey, let's shush them up a bit
+    logging.getLogger('peewee').setLevel(logging.INFO)
+    logging.getLogger('requests').setLevel(logging.WARNING)
+    logging.getLogger('pgoapi.pgoapi').setLevel(logging.WARNING)
+    logging.getLogger('pgoapi.rpc_api').setLevel(logging.INFO)
+    logging.getLogger('werkzeug').setLevel(logging.ERROR)
+
+    config['parse_pokemon'] = not args.no_pokemon
+    config['parse_pokestops'] = not args.no_pokestops
+    config['parse_gyms'] = not args.no_gyms
+
+    # Turn these back up if debugging
+    if args.debug:
+        logging.getLogger('requests').setLevel(logging.DEBUG)
+        logging.getLogger('pgoapi').setLevel(logging.DEBUG)
+        logging.getLogger('rpc_api').setLevel(logging.DEBUG)
+
+    # use lat/lng directly if matches such a pattern
+    prog = re.compile("^(\-?\d+\.\d+),?\s?(\-?\d+\.\d+)$")
+    res = prog.match(args.location)
+    if res:
+        log.debug('Using coordinates from CLI directly')
+        position = (float(res.group(1)), float(res.group(2)), 0)
+    else:
+        log.debug('Looking up coordinates in API')
+        position = util.get_pos_by_name(args.location)
+
+    # Use the latitude and longitude to get the local altitude from Google
+    try:
+        url = 'https://maps.googleapis.com/maps/api/elevation/json?locations={},{}'.format(
+            str(position[0]), str(position[1]))
+        altitude = requests.get(url).json()[u'results'][0][u'elevation']
+        log.debug('Local altitude is: %sm', altitude)
+        position = (position[0], position[1], altitude)
+    except (requests.exceptions.RequestException, IndexError, KeyError):
+        log.error('Unable to retrieve altitude from Google APIs; setting to 0')
+
+    if not any(position):
+        log.error('Could not get a position by name, aborting')
         sys.exit()
-
 
     log.info('Parsed location is: %.4f/%.4f/%.4f (lat/lng/alt)',
              position[0], position[1], position[2])
@@ -110,6 +151,7 @@ if not args.no_server:
 
     # DB Updates
     db_updates_queue = Queue()
+    app.set_db_queue(db_updates_queue)
 
     # Thread(s) to process database updates
     for i in range(args.db_threads):
@@ -125,7 +167,8 @@ if not args.no_server:
 
     # WH Updates
     wh_updates_queue = Queue()
-
+    app.set_wh_queue(wh_updates_queue)
+    
     # Thread to process webhook updates
     for i in range(args.wh_threads):
         log.debug('Starting wh-updater worker thread %d', i)
@@ -169,23 +212,6 @@ if not args.no_server:
     config['ROOT_PATH'] = app.root_path
     config['GMAPS_KEY'] = args.gmaps_key
 
-    search_thread.daemon = True
-    search_thread.name = 'search_thread'
-    search_thread.start()
-
-if args.cors:
-    CORS(app)
-
-# No more stale JS
-init_cache_busting(app)
-
-app.set_search_control(pause_bit)
-app.set_location_queue(new_location_queue)
-
-config['ROOT_PATH'] = app.root_path
-config['GMAPS_KEY'] = args.gmaps_key
-
-if __name__ == '__main__':
     if args.no_server:
         # This loop allows for ctrl-c interupts to work since flask won't be holding the program open
         while search_thread.is_alive():

@@ -38,7 +38,9 @@ class Pogom(Flask):
     def post_pokemon(self): 
         response_dict = request.get_json(force=True)
         log.debug('post_pokemon: %s', response_dict)
-        parse_map(response_dict, None)
+        args = get_args()
+        parse_map(args, response_dict, None, self.db_queue, self.wh_queue)
+        # parse_map(response_dict, None)
         d = {}
         if self.new_location:
             d['lat'] = self.current_location[0]
@@ -51,6 +53,12 @@ class Pogom(Flask):
 
     def set_location_queue(self, queue):
         self.location_queue = queue
+
+    def set_db_queue(self, queue):
+        self.db_queue = queue
+
+    def set_wh_queue(self, queue):
+        self.wh_queue = queue
 
     def set_current_location(self, location):
         log.info('set_current_location: %s', location)
