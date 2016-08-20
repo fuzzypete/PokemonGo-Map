@@ -381,18 +381,6 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue):
     pokestops = {}
     gyms = {}
 
-    if not 'responses' in map_dict:
-        log.info("Error with map_dict: %s", map_dict)
-        return 0
-    responses = map_dict['responses']
-    if not 'GET_MAP_OBJECTS' in responses:
-        log.info("Error with responses: %s", responses)
-        return 0
-    mapObjects = responses['GET_MAP_OBJECTS']     
-    if not 'map_cells' in mapObjects:
-        log.info("Error with mapObjects: %s", mapObjects)
-        return 0
-
     cells = map_dict['responses']['GET_MAP_OBJECTS']['map_cells']
     for cell in cells:
         if config['parse_pokemon']:
